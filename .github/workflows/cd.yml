@@ -38,7 +38,7 @@ jobs:
     - name: Upload
       uses: garygrossgarten/github-action-scp@release
       with:
-        local: ./deploy
+        local: ./
         concurrency: 20
         remote: /kuber/ai_rofl_bot
         host: ${{ env.DC_HOST }}

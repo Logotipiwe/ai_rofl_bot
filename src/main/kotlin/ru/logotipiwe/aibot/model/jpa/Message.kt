@@ -7,8 +7,6 @@ import org.telegram.telegrambots.meta.api.objects.Update
 
 @Entity
 @Table(name = "updates")
-//@Convert(attributeName = "update", converter = JsonBinaryType::class)
-//@TypeDef(name =  "jsonb", typeClass = JsonBinaryType.class)
 class Message {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

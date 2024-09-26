@@ -1,5 +1,8 @@
 ai-rofl-bot:
   token: ${AI_ROFL_BOT_TOKEN}
+  owner-id: ${TG_OWNER_ID}
+gpt:
+  token: ${VSE_GPT_TOKEN}
 spring:
   application:
     name: aibot

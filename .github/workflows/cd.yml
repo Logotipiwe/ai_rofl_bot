@@ -55,8 +55,11 @@ jobs:
         script: |
           export IMAGE=${{ env.IMAGE }}
           export M_TOKEN=${{ env.M_TOKEN }}
-          export AI_ROFL_BOT_TOKEN=${{ env.AI_ROFL_BOT_TOKEN }}
           export DB_PASSWORD=${{ env.DB_PASS }}
+          
+          export AI_ROFL_BOT_TOKEN=${{ env.AI_ROFL_BOT_TOKEN }}
+          export TG_OWNER_ID=${{ env.TG_OWNER_ID }}
+          export VSE_GPT_TOKEN=${{ env.VSE_GPT_TOKEN }}
           
           docker-compose -f /kuber/ai_rofl_bot/docker-compose.yml down --remove-orphans
           docker-compose -f /kuber/ai_rofl_bot/docker-compose.yml up -d

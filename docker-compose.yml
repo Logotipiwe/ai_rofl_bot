@@ -9,6 +9,8 @@ services:
       DB_NAME: postgres
       DB_PASSWORD: ${DB_PASSWORD}
       AI_ROFL_BOT_TOKEN: ${AI_ROFL_BOT_TOKEN}
+      TG_OWNER_ID: ${TG_OWNER_ID}
+      VSE_GPT_TOKEN: ${VSE_GPT_TOKEN}
     networks:
       - dc-net
 

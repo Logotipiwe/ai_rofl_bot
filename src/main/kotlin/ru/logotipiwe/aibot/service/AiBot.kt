@@ -48,7 +48,7 @@ data class AiBot(
     }
 
     private fun saveToDb(update: Update) {
-        log.info("Received update from chat ${update.message.chatId}")
+        log.info("Received update from chat ${update.message.chat.id}")
         if (update.hasMessage() && update.message.hasText()) {
             log.info("Text is ${update.message.text}")
         }

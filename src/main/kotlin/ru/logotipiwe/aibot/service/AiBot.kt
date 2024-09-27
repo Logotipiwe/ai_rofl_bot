@@ -37,13 +37,19 @@ data class AiBot(
         if(update.hasMessage() && update.message.hasText()) {
             if(update.message.from.id == ownerId && update.message.text == "давай саммари") {
                 tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ща будет саммари"))
-                val messages = gptService.getMessagesInStr(update.message.chat.id.toString())
-                log.info("messages: $messages")
-                val answer = gptService.getGptAnswer(messages)
-                tgClient.execute(SendMessage(update.message.chat.id.toString(), answer))
+                try {
+                    val messages = gptService.getMessagesInStr(update.message.chat.id.toString())
+
+                    log.info("messages: $messages")
+                    val answer = gptService.getGptAnswer(messages)
+                    tgClient.execute(SendMessage(update.message.chat.id.toString(), answer))
+                } catch (e: Exception){
+                    tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ошибочка"))
+                    throw e
+                }
+            } else {
+                saveToDb(update)
             }
-        } else {
-            saveToDb(update)
         }
     }
 

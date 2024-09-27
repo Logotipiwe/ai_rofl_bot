@@ -8,6 +8,7 @@ import org.springframework.web.client.RestTemplate
 import ru.logotipiwe.aibot.configuration.GptConfig
 import ru.logotipiwe.aibot.model.dto.GptResponseDto
 import ru.logotipiwe.aibot.model.dto.gptRequestDto
+import ru.logotipiwe.aibot.model.jpa.Message
 import ru.logotipiwe.aibot.repository.MessageRepo
 
 @Service
@@ -17,7 +18,7 @@ data class GptService(
     val messageRepo: MessageRepo
 ) {
     fun getMessagesInStr(chatId: String): String {
-        val messages = messageRepo.getByChatIdForLastDay(chatId)
+        val messages: List<Message> = messageRepo.getByChatIdForLastDay(chatId)
         return messages.joinToString("\n") { m ->
             (m.update?.message?.from?.firstName + ": " + m.update?.message?.text)
         }
@@ -32,7 +33,7 @@ data class GptService(
             model = "openai/gpt-4o-mini"
             message {
                 role = "system"
-                content = "Тебе дают список сообщений от разных людей, а ты описываешь темы которые были обсуждены. Каждую тему опиши отдельным пунктом, в 1-2 предложениях без заголовка и других дополнительных конструкций. Каждую тему ты описываешь в шутливой форме,  иногда подкалывая участников диалога. тебе 20 и у тебя очень подростковый зумерский сленг и юмор, иногда даже немного скорбительный. Ты пишешь по русски"
+                content = "Тебе дают список сообщений от разных людей, а ты описываешь темы которые были обсуждены. Каждую тему опиши отдельным пунктом, в 1-2 предложениях, темы раздели переносом строки. Каждую тему ты описываешь в шутливой форме,  иногда подкалывая участников диалога. тебе 20 и у тебя очень подростковый зумерский сленг и юмор, иногда даже немного скорбительный. Ты пишешь по русски"
             }
             message {
                 role = "user"

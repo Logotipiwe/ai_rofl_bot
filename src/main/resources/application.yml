@@ -1,6 +1,7 @@
 ai-rofl-bot:
   token: ${AI_ROFL_BOT_TOKEN}
   owner-id: ${TG_OWNER_ID}
+  botLogin: ${AI_ROFL_BOT_LOGIN:AiRoflBot}
 gpt:
   token: ${VSE_GPT_TOKEN}
 spring:
@@ -14,3 +15,7 @@ spring:
       schema: ai-rofl-bot
   flyway:
     enabled: true
+    create-schemas: true
+    default-schema: ai-rofl-bot
+  jpa:
+    show-sql: true

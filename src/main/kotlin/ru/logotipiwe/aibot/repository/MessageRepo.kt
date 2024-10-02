@@ -10,8 +10,8 @@ interface MessageRepo: JpaRepository<Message, Long>{
         FROM "ai-rofl-bot".updates u
         WHERE u.update->'message'->'chat'->>'id' = :chatId
         AND u.update->'message'->>'text' is not null
-        AND to_timestamp(cast(u.update->'message'->>'date' as bigint)) > current_timestamp - interval '1 day'
+        AND to_timestamp(cast(u.update->'message'->>'date' as bigint)) > current_timestamp - (:hours * interval '1 hour')
         ORDER BY id asc"""
     )
-    fun getByChatIdForLastDay(@Param("chatId") chatId: String): List<Message>
+    fun getByChatIdForHours(@Param("chatId") chatId: String, @Param("hours") hours: Int): List<Message>
 }

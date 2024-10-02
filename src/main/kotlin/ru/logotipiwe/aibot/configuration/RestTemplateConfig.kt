@@ -27,7 +27,7 @@ class CustomHeaderRemovingInterceptor : ClientHttpRequestInterceptor {
         execution: ClientHttpRequestExecution
     ): ClientHttpResponse {
         // Удаляем все заголовки перед выполнением запроса
-        request.headers.clear()
+//        request.headers.clear()
         // Добавьте свои заголовки, если нужно
         return execution.execute(request, body)
     }

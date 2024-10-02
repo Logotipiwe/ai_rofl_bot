@@ -19,9 +19,11 @@ data class AiBot(
     private val token: String,
     @Value("\${ai-rofl-bot.owner-id}")
     val ownerId: Long,
+    @Value("\${ai-rofl-bot.botLogin}")
+    val botLogin: String,
     private val messageRepo: MessageRepo,
     val gptService: GptService,
-): Bot {
+) : Bot {
     private lateinit var tgClient: TelegramClient
 
     @PostConstruct
@@ -34,24 +36,33 @@ data class AiBot(
     }
 
     override fun consume(update: Update) {
-        if(update.hasMessage() && update.message.hasText()) {
-            if(update.message.from.id == ownerId && update.message.text == "давай саммари") {
-                tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ща будет саммари"))
-                try {
-                    val messages = gptService.getMessagesInStr(update.message.chat.id.toString())
-
-                    log.info("messages: $messages")
-                    val answer = gptService.getGptAnswer(messages)
-                    tgClient.execute(SendMessage(update.message.chat.id.toString(), answer))
-                } catch (e: Exception){
-                    tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ошибочка"))
-                    throw e
-                }
-            } else {
-                saveToDb(update)
-            }
+        if (testForBotCommand(update)) {
+            handleCommand(update)
+        } else {
+            saveToDb(update)
         }
     }
+
+    private fun handleCommand(update: Update) {
+        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ща будет саммари"))
+        val hours = update.message.text.split("\n")[0].split(" ").last().toIntOrNull() ?: 24
+        val prompt = update.message.text.split("\n").drop(1).joinToString("\n").takeIf { it.isNotEmpty() }
+        try {
+            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours)
+            log.info("messages: $messages")
+            val answer = gptService.getGptAnswer(messages, prompt)
+            tgClient.execute(SendMessage(update.message.chat.id.toString(), answer))
+        } catch (e: Exception) {
+            tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ошибочка"))
+            throw e
+        }
+    }
+
+    private fun testForBotCommand(update: Update) =
+        update.hasMessage()
+                && update.message.hasText()
+                && update.message.from.id == ownerId
+                && update.message.text.startsWith("@$botLogin")
 
     private fun saveToDb(update: Update) {
         log.info("Received update from chat ${update.message.chat.id}")

@@ -35,7 +35,7 @@ data class GptService(
                 |ты описываешь в шутливой форме, иногда подкалывая участников диалога. тебе 20 и у тебя очень 
                 |подростковый зумерский сленг и юмор, иногда даже немного скорбительный. Ты пишешь по русски""".trimMargin()
         val request = gptRequestDto {
-            model = "openai/gpt-4o-mini"
+            model = "google/gemma-2-9b-it"
             message {
                 role = "system"
                 content = prompt ?: defaultPrompt

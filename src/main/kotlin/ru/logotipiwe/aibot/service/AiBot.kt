@@ -61,7 +61,7 @@ data class AiBot(
     private fun testForBotCommand(update: Update) =
         update.hasMessage()
                 && update.message.hasText()
-                && update.message.from.id == ownerId
+//                && update.message.from.id == ownerId
                 && update.message.text.startsWith("@$botLogin")
 
     private fun saveToDb(update: Update) {

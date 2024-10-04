@@ -10,7 +10,9 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.generics.TelegramClient
 import ru.logotipiwe.aibot.model.Bot
+import ru.logotipiwe.aibot.model.jpa.AllowedChat
 import ru.logotipiwe.aibot.model.jpa.Message
+import ru.logotipiwe.aibot.repository.AllowedChatRepo
 import ru.logotipiwe.aibot.repository.MessageRepo
 
 @Component
@@ -22,7 +24,8 @@ data class AiBot(
     @Value("\${ai-rofl-bot.botLogin}")
     val botLogin: String,
     private val messageRepo: MessageRepo,
-    val gptService: GptService,
+    private val gptService: GptService,
+    private val allowedChatRepo: AllowedChatRepo
 ) : Bot {
     private lateinit var tgClient: TelegramClient
 
@@ -36,11 +39,39 @@ data class AiBot(
     }
 
     override fun consume(update: Update) {
+        if(isAllowCommand(update)) return allowChat(update)
+        if(isDenyCommand(update)) return denyChat(update)
         if (testForBotCommand(update)) {
+            if(!isChatAllowed(update)) return sendChatDenied(update)
             handleCommand(update)
         } else {
             saveToDb(update)
         }
+    }
+
+    private fun sendChatDenied(update: Update) {
+        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Мне не разрешили выделываться в этом чате. Попросите создателя разрешить"))
+    }
+
+    private fun allowChat(update: Update) {
+        val allowedChat = AllowedChat(update.message.chat.id)
+        allowedChatRepo.save(allowedChat)
+        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ну поехали"))
+    }
+
+    private fun denyChat(update: Update) {
+        allowedChatRepo.delete(AllowedChat(update.message.chat.id))
+        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Приколы закончились"))
+    }
+
+    private fun isAllowCommand(update: Update): Boolean {
+        return update.message.from.id == ownerId
+                && update.message.text == "allow"
+    }
+
+    private fun isDenyCommand(update: Update): Boolean {
+        return update.message.from.id == ownerId
+                && update.message.text == "deny"
     }
 
     private fun handleCommand(update: Update) {
@@ -61,8 +92,11 @@ data class AiBot(
     private fun testForBotCommand(update: Update) =
         update.hasMessage()
                 && update.message.hasText()
-//                && update.message.from.id == ownerId
                 && update.message.text.startsWith("@$botLogin")
+
+    private fun isChatAllowed(update: Update): Boolean {
+        return allowedChatRepo.existsById(update.message.chat.id)
+    }
 
     private fun saveToDb(update: Update) {
         log.info("Received update from chat ${update.message.chat.id}")

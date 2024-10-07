@@ -5,15 +5,13 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
-import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
-import org.telegram.telegrambots.meta.generics.TelegramClient
 import ru.logotipiwe.aibot.model.Bot
 import ru.logotipiwe.aibot.model.jpa.AllowedChat
 import ru.logotipiwe.aibot.model.jpa.Message
 import ru.logotipiwe.aibot.repository.AllowedChatRepo
 import ru.logotipiwe.aibot.repository.MessageRepo
+import ru.logotipiwe.aibot.service.tg.CustomTelegramClient
 
 @Component
 data class AiBot(
@@ -27,11 +25,11 @@ data class AiBot(
     private val gptService: GptService,
     private val allowedChatRepo: AllowedChatRepo
 ) : Bot {
-    private lateinit var tgClient: TelegramClient
+    private lateinit var tgClient: CustomTelegramClient
 
     @PostConstruct
     private fun init() {
-        tgClient = OkHttpTelegramClient(token)
+        tgClient = CustomTelegramClient(token)
     }
 
     companion object {
@@ -50,18 +48,18 @@ data class AiBot(
     }
 
     private fun sendChatDenied(update: Update) {
-        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Мне не разрешили выделываться в этом чате. Попросите создателя разрешить"))
+        tgClient.sendMessage(update.message.chat.id.toString(), "Мне не разрешили выделываться в этом чате. Попросите создателя разрешить")
     }
 
     private fun allowChat(update: Update) {
         val allowedChat = AllowedChat(update.message.chat.id)
         allowedChatRepo.save(allowedChat)
-        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ну поехали"))
+        tgClient.sendMessage(update.message.chat.id.toString(), "Ну поехали")
     }
 
     private fun denyChat(update: Update) {
         allowedChatRepo.delete(AllowedChat(update.message.chat.id))
-        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Приколы закончились"))
+        tgClient.sendMessage(update.message.chat.id.toString(), "Приколы закончились")
     }
 
     private fun isAllowCommand(update: Update): Boolean {
@@ -75,16 +73,19 @@ data class AiBot(
     }
 
     private fun handleCommand(update: Update) {
-        tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ща будет саммари"))
-        val hours = update.message.text.split("\n")[0].split(" ").last().toIntOrNull() ?: 24
-        val prompt = update.message.text.split("\n").drop(1).joinToString("\n").takeIf { it.isNotEmpty() }
+        tgClient.sendMessage(update.message.chat.id, "Ща...")
         try {
-            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours)
-            log.info("messages: $messages")
-            val answer = gptService.getGptAnswer(messages, prompt)
-            tgClient.execute(SendMessage(update.message.chat.id.toString(), answer))
+            val text = update.message.text.trim().replace("@${botLogin}", "").trim()
+            val hours = text.split(" ")[0].toIntOrNull()
+            val prompt = if (hours != null)
+                text.removePrefix(hours.toString())
+            else text
+            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
+
+            val ans = gptService.getGptAnswer(messages, prompt)
+            tgClient.sendMessage(update.message.chat.id, ans)
         } catch (e: Exception) {
-            tgClient.execute(SendMessage(update.message.chat.id.toString(), "Ошибочка"))
+            tgClient.sendMessage(update.message.chat.id, "Ошибочка")
             throw e
         }
     }

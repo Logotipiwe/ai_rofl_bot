@@ -17,6 +17,9 @@ data class GptService(
     val gptConfig: GptConfig,
     val messageRepo: MessageRepo
 ) {
+    companion object {
+        private val additionalPrompt = "Сначала будет запрос, потом список сообщений из чата. Если запрос не ссылается на сообщения - игнорируй их. Пиши на русском."
+    }
     fun getMessagesInStr(chatId: String, hours: Int): String {
         val messages: List<Message> = messageRepo.getByChatIdForHours(chatId, hours)
         return messages.joinToString("\n") { m ->
@@ -33,16 +36,18 @@ data class GptService(
             """Тебе дают список сообщений от разных людей, а ты кратко описываешь темы которые были обсуждены. Каждую 
                 |тему опиши отдельным пунктом, кратко в одном предложении, темы раздели переносом строки. Каждую тему 
                 |ты описываешь в шутливой форме, иногда подкалывая участников диалога. тебе 20 и у тебя очень 
-                |подростковый зумерский сленг и юмор, иногда даже немного скорбительный. Ты пишешь по русски""".trimMargin()
+                |подростковый зумерский сленг и юмор, иногда даже немного оскорбительный. Пиши на русском""".trimMargin()
         val request = gptRequestDto {
             model = "google/gemma-2-9b-it"
             message {
                 role = "system"
-                content = prompt ?: defaultPrompt
+                content = if(prompt.isNullOrEmpty()) defaultPrompt else additionalPrompt
             }
             message {
                 role = "user"
-                content = messages
+                content = if (prompt.isNullOrEmpty())
+                    messages
+                    else prompt + "\n\nЧат:\n" + messages
             }
         }
 

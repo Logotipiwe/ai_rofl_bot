@@ -3,11 +3,7 @@ package ru.logotipiwe.aibot.model.dto
 data class GptRequestDto(
     val model: String,
     val messages: List<Message>,
-){
-    companion object {
-
-    }
-}
+)
 
 data class Message(
     val role: String,

@@ -73,7 +73,7 @@ data class AiBot(
     }
 
     private fun handleCommand(update: Update) {
-        tgClient.sendMessage(update.message.chat.id, "Ща...")
+        val preMessage = tgClient.sendMessage(update.message.chat.id, "Ща...")
         try {
             val text = update.message.text.trim().replace("@${botLogin}", "").trim()
             val hours = text.split(" ")[0].toIntOrNull()
@@ -84,6 +84,7 @@ data class AiBot(
 
             val ans = gptService.getGptAnswer(messages, prompt)
             tgClient.sendMessage(update.message.chat.id, ans)
+            tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         } catch (e: Exception) {
             tgClient.sendMessage(update.message.chat.id, "Ошибочка")
             throw e

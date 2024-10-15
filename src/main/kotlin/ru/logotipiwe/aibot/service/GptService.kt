@@ -27,30 +27,38 @@ data class GptService(
         }
     }
 
-    fun getGptAnswer(messages: String, prompt: String?): String {
-        val headers = HttpHeaders()
-        headers.set("Content-Type", "application/json")
-        headers.set("Authorization", "Bearer ${gptConfig.token}")
-
-        val defaultPrompt =
+    fun getRoflSummary(messages: String): String {
+        val roflPrompt =
             """Тебе дают список сообщений от разных людей, а ты кратко описываешь темы которые были обсуждены. Каждую 
                 |тему опиши отдельным пунктом, кратко в одном предложении, темы раздели переносом строки. Каждую тему 
                 |ты описываешь в шутливой форме, иногда подкалывая участников диалога. тебе 20 и у тебя очень 
                 |подростковый зумерский сленг и юмор, иногда даже немного оскорбительный. Пиши на русском""".trimMargin()
+        return doGptRequest(roflPrompt, messages)
+    }
+
+    fun getUserPromptAnswer(messages: String, prompt: String): String {
+        return doGptRequest(
+            additionalPrompt,
+            "$prompt\n\nЧат:\n$messages"
+        )
+    }
+
+    private fun doGptRequest(systemMessage: String, userMessage: String): String {
+        val headers = HttpHeaders()
+        headers.set("Content-Type", "application/json")
+        headers.set("Authorization", "Bearer ${gptConfig.token}")
+
         val request = gptRequestDto {
             model = "google/gemma-2-9b-it"
             message {
                 role = "system"
-                content = if(prompt.isNullOrEmpty()) defaultPrompt else additionalPrompt
+                content = systemMessage
             }
             message {
                 role = "user"
-                content = if (prompt.isNullOrEmpty())
-                    messages
-                    else prompt + "\n\nЧат:\n" + messages
+                content = userMessage
             }
         }
-
         val entity = HttpEntity(request, headers)
         val url = "https://api.vsegpt.ru/v1/chat/completions"
 

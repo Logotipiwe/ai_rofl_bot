@@ -37,14 +37,34 @@ data class AiBot(
     }
 
     override fun consume(update: Update) {
+        if(update.isPersonalChat()) return replyPrivate(update)
         if(isAllowCommand(update)) return allowChat(update)
         if(isDenyCommand(update)) return denyChat(update)
-        if (testForBotCommand(update)) {
-            if(!isChatAllowed(update)) return sendChatDenied(update)
-            handleCommand(update)
-        } else {
-            saveToDb(update)
+
+        saveToDb(update)
+
+        if(!isChatAllowed(update)) return sendChatDenied(update)
+
+        if(testForSummaryCommand(update)) return sendRoflSummary(update)
+        if (testForBotPrompt(update)) sendPromptAnswer(update)
+    }
+
+    private fun sendRoflSummary(update: Update) {
+        val preMessage = tgClient.sendMessage(update.message.chat.id, "Ща...")
+        try {
+            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), 24)
+
+            val ans = gptService.getRoflSummary(messages)
+            tgClient.sendMessage(update.message.chat.id, ans)
+        } catch (e: Exception) {
+            tgClient.sendMessage(update.message.chat.id, "Ошибочка")
+            throw e
         }
+        tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
+    }
+
+    private fun replyPrivate(update: Update) {
+        tgClient.sendMessage(update.message.chat.id, "Я работаю только в групповых чатах, добавь меня туда и дай роль админа, чтобы я мог читать сообщения")
     }
 
     private fun sendChatDenied(update: Update) {
@@ -72,17 +92,17 @@ data class AiBot(
                 && update.message.text == "deny"
     }
 
-    private fun handleCommand(update: Update) {
+    private fun sendPromptAnswer(update: Update) {
         val preMessage = tgClient.sendMessage(update.message.chat.id, "Ща...")
         try {
-            val text = update.message.text.trim().replace("@${botLogin}", "").trim()
-            val hours = text.split(" ")[0].toIntOrNull()
-            val prompt = if (hours != null)
-                text.removePrefix(hours.toString())
-            else text
+            val words = update.message.text.split(" ")
+            // убираем команду из сообщения
+            val text = words.drop(0).joinToString(" ")
+            val hours = words[0].toIntOrNull()
+            val prompt = if (hours != null) text.removePrefix(hours.toString()) else text
             val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
 
-            val ans = gptService.getGptAnswer(messages, prompt)
+            val ans = gptService.getUserPromptAnswer(messages, prompt)
             tgClient.sendMessage(update.message.chat.id, ans)
             tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         } catch (e: Exception) {
@@ -91,10 +111,15 @@ data class AiBot(
         }
     }
 
-    private fun testForBotCommand(update: Update) =
+    private fun testForBotPrompt(update: Update) =
         update.hasMessage()
                 && update.message.hasText()
                 && update.message.text.startsWith("@$botLogin")
+
+    private fun testForSummaryCommand(update: Update) =
+        update.hasMessage()
+                && update.message.hasText()
+                && update.message.text.startsWith("/summary")
 
     private fun isChatAllowed(update: Update): Boolean {
         return allowedChatRepo.existsById(update.message.chat.id)
@@ -116,4 +141,8 @@ data class AiBot(
     }
 
     override fun getToken(): String = token
+}
+
+private fun Update.isPersonalChat(): Boolean {
+    return this.message.chat.isUserChat
 }

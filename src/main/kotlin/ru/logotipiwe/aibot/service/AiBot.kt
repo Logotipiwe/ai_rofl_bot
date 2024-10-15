@@ -97,19 +97,19 @@ data class AiBot(
         try {
             val words = update.message.text.split(" ")
             // убираем команду из сообщения
-            val text = words.drop(0).joinToString(" ")
-            val hours = words[0].toIntOrNull()
+            val text = words.drop(1).joinToString(" ")
+            val hours = words.drop(1)[0].toIntOrNull()
             val prompt = if (hours != null) text.removePrefix(hours.toString()) else text
             val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
 
             val ans = if (prompt.isBlank()) gptService.getRoflSummary(messages)
                 else gptService.getUserPromptAnswer(messages, prompt)
             tgClient.sendMessage(update.message.chat.id, ans)
-            tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         } catch (e: Exception) {
             tgClient.sendMessage(update.message.chat.id, "Ошибочка")
             throw e
         }
+        tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
     }
 
     private fun testForBotPrompt(update: Update) =

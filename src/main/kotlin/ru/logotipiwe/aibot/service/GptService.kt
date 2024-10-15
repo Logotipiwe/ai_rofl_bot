@@ -1,5 +1,6 @@
 package ru.logotipiwe.aibot.service
 
+import org.apache.logging.log4j.LogManager.getLogger
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
@@ -8,7 +9,6 @@ import org.springframework.web.client.RestTemplate
 import ru.logotipiwe.aibot.configuration.GptConfig
 import ru.logotipiwe.aibot.model.dto.GptResponseDto
 import ru.logotipiwe.aibot.model.dto.gptRequestDto
-import ru.logotipiwe.aibot.model.jpa.Message
 import ru.logotipiwe.aibot.repository.MessageRepo
 
 @Service
@@ -18,32 +18,10 @@ data class GptService(
     val messageRepo: MessageRepo
 ) {
     companion object {
-        private val additionalPrompt = "Сначала будет запрос, потом список сообщений из чата. Если запрос не ссылается на сообщения - игнорируй их. Пиши на русском."
-    }
-    fun getMessagesInStr(chatId: String, hours: Int): String {
-        val messages: List<Message> = messageRepo.getByChatIdForHours(chatId, hours)
-        return messages.joinToString("\n") { m ->
-            (m.update?.message?.from?.firstName + ": " + m.update?.message?.text)
-        }
+        private val log = getLogger(GptService::class.java)
     }
 
-    fun getRoflSummary(messages: String): String {
-        val roflPrompt =
-            """Тебе дают список сообщений от разных людей, а ты кратко описываешь темы которые были обсуждены. Каждую 
-                |тему опиши отдельным пунктом, кратко в одном предложении, темы раздели переносом строки. Каждую тему 
-                |ты описываешь в шутливой форме, иногда подкалывая участников диалога. тебе 20 и у тебя очень 
-                |подростковый зумерский сленг и юмор, иногда даже немного оскорбительный. Пиши на русском""".trimMargin()
-        return doGptRequest(roflPrompt, messages)
-    }
-
-    fun getUserPromptAnswer(messages: String, prompt: String): String {
-        return doGptRequest(
-            additionalPrompt,
-            "$prompt\n\nЧат:\n$messages"
-        )
-    }
-
-    private fun doGptRequest(systemMessage: String, userMessage: String): String {
+    fun doGptRequest(systemMessage: String, userMessage: String): String {
         val headers = HttpHeaders()
         headers.set("Content-Type", "application/json")
         headers.set("Authorization", "Bearer ${gptConfig.token}")
@@ -62,10 +40,15 @@ data class GptService(
         val entity = HttpEntity(request, headers)
         val url = "https://api.vsegpt.ru/v1/chat/completions"
 
+        log.info("Sending request to gpt...")
+        log.info("Input tokens: ${(systemMessage+userMessage).length}")
         val response = restTemplate.exchange(url, HttpMethod.POST, entity, GptResponseDto::class.java)
         if(response.statusCode.is2xxSuccessful.not()) {
             throw RuntimeException(response.body.toString())
         }
-        return response.body!!.choices.joinToString(". ") { c -> c.message?.content ?: "net kontenta" }
+        val answer = response.body!!.choices.joinToString(". ") { c -> c.message?.content ?: "net kontenta" }
+        log.info("Got answer from gpt.")
+        log.info("Output tokens: ${answer.length}")
+        return answer
     }
 }

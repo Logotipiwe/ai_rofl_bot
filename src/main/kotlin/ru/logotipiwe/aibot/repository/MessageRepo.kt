@@ -14,4 +14,17 @@ interface MessageRepo: JpaRepository<Message, Long>{
         ORDER BY id asc"""
     )
     fun getByChatIdForHours(@Param("chatId") chatId: String, @Param("hours") hours: Int): List<Message>
+
+    @Query(nativeQuery = true, value = """
+        SELECT distinct update->'message'->'from'->>'username' 
+        FROM updates
+        WHERE update->'message'->'chat'->>'id' = :chatId""")
+    fun getChatMembersUsernames(@Param("chatId") chatId: String): Set<String>
+
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM updates 
+        WHERE update->'message'->'chat'->>'id' = :chatId
+        AND update->'message'->'from'->>'username' = :userName
+    """)
+    fun getMessagesByUserName(chatId: String, userName: String): List<Message>
 }

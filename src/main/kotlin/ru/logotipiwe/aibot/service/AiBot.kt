@@ -27,6 +27,7 @@ data class AiBot(
     private val gptService: GptService,
     private val allowedChatRepo: AllowedChatRepo,
     private val answersRepo: AnswersRepo,
+    private val messagesService: MessagesService
 ) : Bot {
     private lateinit var tgClient: CustomTelegramClient
 
@@ -37,16 +38,22 @@ data class AiBot(
 
     companion object {
         private val log: Logger = LoggerFactory.getLogger(this::class.java)
+        private const val additionalPrompt = "Сначала будет запрос, потом список сообщений из чата. Если запрос не ссылается на сообщения - игнорируй их. Пиши на русском."
+        private val imitationsChatToMember: MutableMap<String, String> = mutableMapOf()
     }
 
     override fun consume(update: Update) {
+        if(update.message.chat.id == ownerId) {
+            tgClient.sendMessage(update.message.chat.id, answerOwner(update))
+            return
+        }
         if(update.isPersonalChat()) return replyPrivate(update)
-        if(isAllowCommand(update)) return allowChat(update)
-        if(isDenyCommand(update)) return denyChat(update)
+//        if(isAllowCommand(update)) return allowChat(update)
+//        if(isDenyCommand(update)) return denyChat(update)
         
         val savedUpdate = saveToDb(update)
 
-        if(!isChatAllowed(update)) return sendChatDenied(update)
+//        if(!isChatAllowed(update)) return sendChatDenied(update)
         
         val answer = answerIfCommand(update)
         if(answer != null) {
@@ -58,18 +65,89 @@ data class AiBot(
     }
 
     private fun answerIfCommand(update: Update): String? {
+        if(testForImitateCommand(update)) return startImitation(update)
+        if(testForStopImitateCommand(update)) return stopImitate(update)
         if(testForSummaryCommand(update)) return sendRoflSummary(update)
+
+        if(isImitating(update)) return doImitate(update)
         if (testForBotPrompt(update)) return sendPromptAnswer(update)
         return null
+    }
+
+    private fun doImitate(update: Update): String? {
+        val chatId = update.message.chat.id.toString()
+        val username = imitationsChatToMember[chatId] ?: return null
+        val messages = messagesService.getMessagesOfUser(chatId, username).toMutableList()
+        val firstName = messages.first().update?.message?.from?.firstName ?: return null
+        val maxTokens = 5000
+        val maxTokensInMessage = 100
+        var messagesInStr = ""
+        while(messagesInStr.length < maxTokens && messages.isNotEmpty()) {
+            messagesInStr += messages.removeFirst().update?.message?.text?.take(maxTokensInMessage) ?: ""
+        }
+        val systemMessage = "Ты являешься $firstName, участником чата в котором он писал. Предположи кем является $firstName " +
+                "и веди себя именно так. Вот его фразы\n\n$messagesInStr\n\nОтветь на сообщение адресованное $firstName. Размер твоего " +
+                "ответа должен быть сопоставим с размером сообщения. Не ставь переносы строк"
+        val answer = "$firstName: ${gptService.doGptRequest(systemMessage, update.message.text)}"
+        tgClient.sendMessage(chatId, answer)
+        return answer
+    }
+
+    private fun isImitating(update: Update): Boolean {
+        return imitationsChatToMember.contains(update.message.chat.id.toString())
+    }
+
+    private fun stopImitate(update: Update): String {
+        val answer = "Больше никого не имитирую"
+        tgClient.sendMessage(update.message.chat.id, answer)
+        imitationsChatToMember.remove(update.message.chat.id.toString())
+        return answer
+    }
+
+    private fun testForStopImitateCommand(update: Update): Boolean {
+        return update.message.text.startsWith("/stop_imitate")
+    }
+
+    private fun startImitation(update: Update): String {
+        val text = update.message.text
+        val chatId = update.message.chat.id.toString()
+        if(text.split(" ").size != 2) {
+            val answer = "Укажи ник кого имитировать через пробел после команды"
+            tgClient.sendMessage(update.message.chat.id, answer)
+            return answer
+        }
+        val username = text.split(" ")[1].replace("@", "")
+        val usernamesInChat = messagesService.getChatMembersUsernames(chatId)
+        if(usernamesInChat.contains(username).not()) {
+            val answer = "Такого юзера нет, либо он совсем не писал сообщений"
+            tgClient.sendMessage(chatId, answer)
+            return answer
+        } else {
+            val answer = "Щас буду имитировать @$username"
+            tgClient.sendMessage(chatId, answer)
+            imitationsChatToMember[chatId] = username
+            return answer
+        }
+    }
+
+    private fun testForImitateCommand(update: Update): Boolean {
+        return update.message.isCommand && update.message.text.startsWith("/imitate")
+    }
+
+    private fun answerOwner(update: Update): String {
+        val messages = messagesService.getMessagesInStr("-1002415003054", 350)
+        return gptService.doGptRequest("Ты являешься Igor, участником чата в котором он писал. Вот его сообщения\n\n"
+            + messages + "\n\n Ответь на сообщение. Размер твоего ответа должен быть сопоставим с размером сообщения",
+            update.message.text)
     }
 
     private fun sendRoflSummary(update: Update): String {
         val preMessage = tgClient.sendMessage(update.message.chat.id, "Ща...")
         val ans: String?
         try {
-            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), 24)
+            val messages = messagesService.getMessagesInStr(update.message.chat.id.toString(), 24)
 
-            ans = gptService.getRoflSummary(messages)
+            ans = getRoflSummary(messages)
             tgClient.sendMessage(update.message.chat.id, ans)
         } catch (e: Exception) {
             tgClient.sendMessage(update.message.chat.id, "Ошибочка")
@@ -110,21 +188,23 @@ data class AiBot(
 
     private fun sendPromptAnswer(update: Update): String? {
         val preMessage = tgClient.sendMessage(update.message.chat.id, "Ща...")
-        val ans: String?
+        var ans: String? = null
         try {
             val words = update.message.text.split(" ")
             // убираем команду из сообщения
             val text = words.drop(1).joinToString(" ")
-            val hours = words.drop(1)[0].toIntOrNull()
+            val hours = if(words.size > 1) words[1].toIntOrNull() else null
             val prompt = if (hours != null) text.removePrefix(hours.toString()) else text
-            val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
+            val messages = messagesService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
 
-            ans = if (prompt.isBlank()) gptService.getRoflSummary(messages)
-                else gptService.getUserPromptAnswer(messages, prompt)
+            ans = if (prompt.isBlank()) getRoflSummary(messages)
+            else gptService.doGptRequest(
+                additionalPrompt,
+                "$prompt\n\nЧат:\n$messages"
+            )
             tgClient.sendMessage(update.message.chat.id, ans)
         } catch (e: Exception) {
             tgClient.sendMessage(update.message.chat.id, "Ошибочка")
-            throw e
         }
         tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         return ans
@@ -154,6 +234,15 @@ data class AiBot(
         val saved = messageRepo.saveAndFlush(message)
         log.info("Saved successfully with id ${saved.id}")
         return saved
+    }
+
+    fun getRoflSummary(messages: String): String {
+        val roflPrompt =
+            """Тебе дают список сообщений от разных людей, а ты кратко описываешь темы которые были обсуждены. Каждую 
+                |тему опиши отдельным пунктом, кратко в одном предложении, темы раздели переносом строки. Каждую тему 
+                |ты описываешь в шутливой форме, иногда подкалывая участников диалога. тебе 20 и у тебя очень 
+                |подростковый зумерский сленг и юмор, иногда даже немного оскорбительный. Пиши на русском""".trimMargin()
+        return gptService.doGptRequest(roflPrompt, messages)
     }
 
     override fun getToken(): String = token

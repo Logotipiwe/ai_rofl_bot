@@ -102,7 +102,8 @@ data class AiBot(
             val prompt = if (hours != null) text.removePrefix(hours.toString()) else text
             val messages = gptService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
 
-            val ans = gptService.getUserPromptAnswer(messages, prompt)
+            val ans = if (prompt.isBlank()) gptService.getRoflSummary(messages)
+                else gptService.getUserPromptAnswer(messages, prompt)
             tgClient.sendMessage(update.message.chat.id, ans)
             tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         } catch (e: Exception) {

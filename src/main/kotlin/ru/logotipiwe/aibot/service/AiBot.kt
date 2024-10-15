@@ -88,7 +88,7 @@ data class AiBot(
         val systemMessage = "Ты являешься $firstName, участником чата в котором он писал. Предположи кем является $firstName " +
                 "и веди себя именно так. Вот его фразы\n\n$messagesInStr\n\nОтветь на сообщение адресованное $firstName. Размер твоего " +
                 "ответа должен быть сопоставим с размером сообщения. Не ставь переносы строк"
-        val answer = "$firstName: ${gptService.doGptRequest(systemMessage, update.message.text)}"
+        val answer = "$firstName: ${gptService.doGptRequest(systemMessage, update.message.text, 300)}"
         tgClient.sendMessage(chatId, answer)
         return answer
     }

@@ -21,13 +21,14 @@ data class GptService(
         private val log = getLogger(GptService::class.java)
     }
 
-    fun doGptRequest(systemMessage: String, userMessage: String): String {
+    fun doGptRequest(systemMessage: String, userMessage: String, maxTokens: Int? = null): String {
         val headers = HttpHeaders()
         headers.set("Content-Type", "application/json")
         headers.set("Authorization", "Bearer ${gptConfig.token}")
 
         val request = gptRequestDto {
             model = "google/gemma-2-9b-it"
+            this.maxTokens = maxTokens
             message {
                 role = "system"
                 content = systemMessage

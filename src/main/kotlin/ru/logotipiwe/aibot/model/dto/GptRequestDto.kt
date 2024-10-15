@@ -1,7 +1,11 @@
 package ru.logotipiwe.aibot.model.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class GptRequestDto(
     val model: String,
+    @JsonProperty("max_tokens")
+    val maxTokens: Int?,
     val messages: List<Message>,
 )
 
@@ -16,6 +20,7 @@ fun gptRequestDto(block: GptRequestDtoBuilder.() -> Unit): GptRequestDto {
 
 class GptRequestDtoBuilder {
     var model: String = ""
+    var maxTokens: Int? = null
     private val messages: MutableList<Message> = mutableListOf()
 
     fun message(block: MessageBuilder.() -> Unit) {
@@ -23,7 +28,7 @@ class GptRequestDtoBuilder {
     }
 
     fun build(): GptRequestDto {
-        return GptRequestDto(model, messages)
+        return GptRequestDto(model, maxTokens, messages)
     }
 
     class MessageBuilder {

@@ -123,7 +123,7 @@ data class AiBot(
             tgClient.sendMessage(chatId, answer)
             return answer
         } else {
-            val answer = "Щас буду имитировать @$username"
+            val answer = "Щас буду имитировать $username"
             tgClient.sendMessage(chatId, answer)
             imitationsChatToMember[chatId] = username
             return answer

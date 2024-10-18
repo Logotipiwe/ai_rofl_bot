@@ -79,7 +79,7 @@ data class AiBot(
         val username = imitationsChatToMember[chatId] ?: return null
         val messages = messagesService.getMessagesOfUser(chatId, username).toMutableList()
         val firstName = messages.first().update?.message?.from?.firstName ?: return null
-        val maxTokens = 4700
+        val maxTokens = 4400
         val maxTokensInMessage = 100
         var messagesInStr = ""
         while(messagesInStr.length < maxTokens && messages.isNotEmpty()) {

@@ -43,18 +43,16 @@ data class AiBot(
     }
 
     override fun consume(update: Update) {
-        if(update.message.chat.id == ownerId) {
+        if(update.hasMessage() && update.message.chat.id == ownerId) {
             tgClient.sendMessage(update.message.chat.id, answerOwner(update))
             return
         }
         if(update.isPersonalChat()) return replyPrivate(update)
 //        if(isAllowCommand(update)) return allowChat(update)
 //        if(isDenyCommand(update)) return denyChat(update)
-        
         val savedUpdate = saveToDb(update)
-
 //        if(!isChatAllowed(update)) return sendChatDenied(update)
-        
+        if(update.isHelpCommand) return replyHelp(update)
         val answer = answerIfCommand(update)
         if(answer != null) {
             val answerObj = Answer()
@@ -64,13 +62,37 @@ data class AiBot(
         }
     }
 
-    private fun answerIfCommand(update: Update): String? {
-        if(testForImitateCommand(update)) return startImitation(update)
-        if(testForStopImitateCommand(update)) return stopImitate(update)
-        if(testForSummaryCommand(update)) return sendRoflSummary(update)
+    private fun replyHelp(update: Update) {
+        tgClient.sendMessage(update.message.chatId, """
+            Я помогаю анализировать беседу. Вот как мной можно управлять:
+            /summary - получить суммаризацию сообщений за сутки
+            @${botLogin} - то же самое
+            
+            Если после тега написать вопрос, я на него отвечу. Например:
+            @${botLogin} кто самый смешной в этом чате?
+            Также перед вопросом можно указать цифру - кол-во часов за которые взять сообщения. Например:
+            @${botLogin} 3 что тут обсуждалось?
+            
+            /imitate {никнейм} - попробую отвечать на ваши сообщения в манере указанного участника чата.
+            Чтобы я перестал его имитировать - /stop_imitate
+        """.trimIndent())
+    }
 
-        if(isImitating(update)) return doImitate(update)
-        if (testForBotPrompt(update)) return sendPromptAnswer(update)
+    private fun answerIfCommand(update: Update): String? {
+        try {
+            if(testForImitateCommand(update)) return startImitation(update)
+            if(testForStopImitateCommand(update)) return stopImitate(update)
+            if(testForSummaryCommand(update)) return sendRoflSummary(update)
+
+            if (testForBotPrompt(update)) return sendPromptAnswer(update)
+            if (isImitating(update)) return doImitate(update)
+        } catch (e: Exception){
+            //реакция 🥴
+            tgClient.setReaction(update, "\uD83E\uDD74")
+            //сделать предварительный анализ является ли оно отсылкой к чату
+            log.error(e.message, e)
+            return "err"
+        }
         return null
     }
 
@@ -98,14 +120,14 @@ data class AiBot(
     }
 
     private fun stopImitate(update: Update): String {
-        val answer = "Больше никого не имитирую"
-        tgClient.sendMessage(update.message.chat.id, answer)
+        val answer = "👌"
+        tgClient.setReaction(update, answer)
         imitationsChatToMember.remove(update.message.chat.id.toString())
         return answer
     }
 
     private fun testForStopImitateCommand(update: Update): Boolean {
-        return update.message.text.startsWith("/stop_imitate")
+        return update.message.isCommand && update.message.text.startsWith("/stop_imitate")
     }
 
     private fun startImitation(update: Update): String {
@@ -150,7 +172,6 @@ data class AiBot(
             ans = getRoflSummary(messages)
             tgClient.sendMessage(update.message.chat.id, ans)
         } catch (e: Exception) {
-            tgClient.sendMessage(update.message.chat.id, "Ошибочка")
             throw e
         }
         tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
@@ -198,15 +219,16 @@ data class AiBot(
             val messages = messagesService.getMessagesInStr(update.message.chat.id.toString(), hours ?: 24)
 
             ans = if (prompt.isBlank()) getRoflSummary(messages)
-            else gptService.doGptRequest(
-                additionalPrompt,
-                "$prompt\n\nЧат:\n$messages"
-            )
+                else gptService.doGptRequest(
+                    additionalPrompt,
+                    "$prompt\n\nЧат:\n$messages"
+                )
             tgClient.sendMessage(update.message.chat.id, ans)
         } catch (e: Exception) {
-            tgClient.sendMessage(update.message.chat.id, "Ошибочка")
+            throw e
+        } finally {
+            tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         }
-        tgClient.deleteMessage(update.message.chat.id, preMessage.messageId)
         return ans
     }
 
@@ -217,7 +239,7 @@ data class AiBot(
 
     private fun testForSummaryCommand(update: Update) =
         update.hasMessage()
-                && update.message.hasText()
+                && update.message.isCommand
                 && update.message.text.startsWith("/summary")
 
     private fun isChatAllowed(update: Update): Boolean {
@@ -251,3 +273,6 @@ data class AiBot(
 private fun Update.isPersonalChat(): Boolean {
     return this.message.chat.isUserChat
 }
+
+private val Update.isHelpCommand: Boolean
+    get() = hasMessage() && message.isCommand && message.text.startsWith("/help")
